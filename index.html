@@ -996,7 +996,7 @@
             try {
                 const payload = { contents: tempHistory };
                 const apiKey = userApiKey;
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const apiUrl = `https://h-kappa-ten.vercel.app/AIzaSyDxGremhwUmPIJjj2B-uqafFFhL2oyYcHs/generate-text`;
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
                 const result = await response.json();
@@ -1018,7 +1018,7 @@
             try {
                 const payload = { instances: [{ prompt }], parameters: { "sampleCount": 1 } };
                 const apiKey = userApiKey;
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+                const apiUrl =`https://h-kappa-ten.vercel.app/AIzaSyDxGremhwUmPIJjj2B-uqafFFhL2oyYcHs/generate-imagei`;
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
                 const result = await response.json();
@@ -1101,3 +1101,4 @@
 </script>
 </body>
 </html>
+
