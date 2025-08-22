@@ -189,9 +189,14 @@
                 <h1 id="header-title" class="text-lg font-extrabold break-words leading-tight">MTM Technical Expert</h1>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-4">
                 <button id="mode-general" class="taskbar-btn active p-2 text-xs sm:text-sm font-semibold transition-all duration-300 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-400">General</button>
                 <button id="mode-proprietary" class="taskbar-btn p-2 text-xs sm:text-sm font-semibold transition-all duration-300 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-400">MTM Specific</button>
+                <button id="settings-button" class="text-white hover:text-red-200 transition-colors" title="Settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                    </svg>
+                </button>
             </div>
         </header>
 
@@ -289,6 +294,7 @@
         const sendButton = document.getElementById('send-button');
         const modeGeneralBtn = document.getElementById('mode-general');
         const modeProprietaryBtn = document.getElementById('mode-proprietary');
+        const settingsButton = document.getElementById('settings-button');
         const welcomeContainer = document.getElementById('welcome-container');
         const welcomeText = document.getElementById('welcome-text');
 
@@ -327,16 +333,24 @@
             "fathin": "5678"
         };
 
-        function getApiKey() {
-            if (userApiKey) {
-                return userApiKey;
+        function getApiKey(forcePrompt = false) {
+            let storedKey = localStorage.getItem('googleApiKey');
+            if (storedKey && !forcePrompt) {
+                userApiKey = storedKey;
+                return true;
             }
-            userApiKey = prompt("Please enter your Google AI API Key to enable generative features:");
-            if (!userApiKey) {
+            
+            const newKey = prompt("Please enter your Google AI API Key:", storedKey || "");
+            
+            if (newKey) {
+                userApiKey = newKey;
+                localStorage.setItem('googleApiKey', newKey);
+                return true;
+            } else if (!storedKey) {
                 alert("An API Key is required to use the chatbot's generative features. The app will not work correctly without it.");
-                return null;
+                return false;
             }
-            return userApiKey;
+            return !!storedKey; // Return true if there was already a key, even if they cancelled
         }
 
         loginForm.addEventListener('submit', (e) => {
@@ -346,7 +360,7 @@
 
             if (credentials[username] && credentials[username] === password) {
                 if (!getApiKey()) {
-                    return; 
+                    return; // Stop if the user cancels the initial API key prompt
                 }
                 loginContainer.classList.add('hidden');
                 chatAppContainer.classList.remove('hidden');
@@ -354,6 +368,10 @@
             } else {
                 loginError.classList.remove('hidden');
             }
+        });
+
+        settingsButton.addEventListener('click', () => {
+            getApiKey(true); // Force prompt to change the key
         });
 
         // ===================================
@@ -996,7 +1014,7 @@
             try {
                 const payload = { contents: tempHistory };
                 const apiKey = userApiKey;
-                const apiUrl = `https://h-kappa-ten.vercel.app/AIzaSyDxGremhwUmPIJjj2B-uqafFFhL2oyYcHs/generate-text`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
                 const result = await response.json();
@@ -1018,7 +1036,7 @@
             try {
                 const payload = { instances: [{ prompt }], parameters: { "sampleCount": 1 } };
                 const apiKey = userApiKey;
-                const apiUrl =`https://h-kappa-ten.vercel.app/AIzaSyDxGremhwUmPIJjj2B-uqafFFhL2oyYcHs/generate-imagei`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
                 const result = await response.json();
@@ -1101,4 +1119,3 @@
 </script>
 </body>
 </html>
-
