@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>MTM Technical Expert</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked.js CDN for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- PDF.js (for PDF text extraction) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
+    <!-- Mammoth.js (for DOCX text extraction) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    <!-- MathJax for LaTeX rendering -->
+    <script>
+        MathJax = {
+          tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            displayMath: [['$$', '$$'], ['\\[', '\\]']]
+          },
+          svg: {
+            fontCache: 'global'
+          }
+        };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
+    </script>
+
+
+    <style>
+        /* Inter font for a modern look */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0d0d10 0%, #1a1a24 100%);
+            background-attachment: fixed;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            z-index: 0;
+        }
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+              radial-gradient(circle at 10% 20%, rgba(200,200,200,.05) 0%, transparent 50%),
+              radial-gradient(circle at 90% 80%, rgba(200,200,200,.05) 0%, transparent 50%);
+            background-size: 100% 100%;
+            z-index: -1;
+        }
+
+        /* Fix for iPhone view height issue */
+        #root {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            height: 100vh;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        /* Typing dots */
+        @keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+        .typing-animation .dot { animation: blink 1.4s infinite; }
+        .typing-animation .dot:nth-child(2) { animation-delay: .2s; }
+        .typing-animation .dot:nth-child(3) { animation-delay: .4s; }
+
+        /* Markdown */
+        .markdown-content p { margin-bottom: 1rem; line-height: 1.6; }
+        .markdown-content ul { margin-bottom: 1rem; list-style: disc; padding-left: 1.5rem; }
+        .markdown-content strong { font-weight: 700; }
+        .markdown-content a { color: #f87171; text-decoration: underline; }
+
+        #messages-container { -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
+
+        .taskbar-btn { position: relative; transition: all .3s ease; cursor: pointer; }
+        .taskbar-btn.active { font-weight: 700; color: #f87171; }
+        .taskbar-btn.active::after {
+            content: ''; position: absolute; left: 0; right: 0; bottom: -3px; height: 3px;
+            background-color: #f87171; border-radius: 9999px; animation: expandUnderline .3s ease-out forwards;
+        }
+        @keyframes expandUnderline { from {transform: scaleX(0)} to {transform: scaleX(1)} }
+
+        .message-bubble { transition: all .2s ease-in-out; transform-origin: bottom; animation: fadeInSlideUpMessage .3s ease-out; }
+        .user-bubble { background-color: #f87171; color: #fff; border-radius: 1.5rem 1.5rem .5rem 1.5rem; cursor: pointer; }
+        .bot-bubble { background-color: #2e3039; color: #d1d5db; border-radius: 1.5rem 1.5rem 1.5rem .5rem; }
+
+        #send-button, #login-button { transition: transform .2s, background-color .2s; cursor: pointer; }
+        #send-button:hover, #login-button:hover { transform: scale(1.05); background-color: #ef4444; }
+
+        .welcome-animation { opacity: 0; transform: translateY(20px); animation: fadeInSlideUp .8s ease-out forwards; }
+        @keyframes fadeInSlideUp { from {opacity:0; transform: translateY(20px)} to {opacity:1; transform: translateY(0)} }
+        @keyframes fadeInSlideUpMessage { from {opacity:0; transform: translateY(10px)} to {opacity:1; transform: translateY(0)} }
+
+        .robot-head-animation { animation: float 4s ease-in-out infinite; }
+        @keyframes float { 0%{transform: translateY(0)} 50%{transform: translateY(-10px)} 100%{transform: translateY(0)} }
+
+        /* Small tag for showing doc attachment */
+        .tag { font-size: .75rem; padding: .15rem .5rem; border-radius: .5rem; background:#374151; color:#d1d5db; }
+
+        /* Custom style for the header to break the title */
+        #header-title {
+            word-break: break-words;
+            line-height: 1.2;
+        }
+        
+        /* Spinner for image loading */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #f87171;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Image Modal Styles */
+        #image-modal { transition: opacity 0.3s ease; }
+        #close-modal:hover { color: #f87171; transform: scale(1.1); }
+        .chat-image { cursor: zoom-in; }
+
+        /* Prompt Suggestions */
+        #prompt-suggestions { z-index: 10; }
+        #prompt-suggestions div:hover { background-color: #4b5563; }
+    </style>
+</head>
+<body id="root" class="font-sans flex items-center justify-center p-4 sm:p-6 md:p-8 text-gray-200">
+
+    <!-- Login Container -->
+    <div id="login-container" class="w-full max-w-md">
+        <div class="bg-gray-900 border border-gray-700 rounded-3xl shadow-2xl p-8 space-y-6">
+            <div class="flex flex-col items-center space-y-2">
+                 <svg width="80" height="50" viewBox="0 0 150 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logoTitle">
+                    <title id="logoTitle">MTM Logo</title>
+                    <ellipse cx="75" cy="50" rx="75" ry="35" fill="#1f3083" />
+                    <rect x="12" y="25" width="36" height="50" rx="25" fill="#f87171" />
+                    <rect x="57" y="25" width="36" height="50" rx="25" fill="#f87171" />
+                    <rect x="102" y="25" width="36" height="50" rx="25" fill="#f87171" />
+                    <text x="30" y="60" font-family="'Inter', sans-serif" font-size="35" font-weight="bold" text-anchor="middle" fill="#1f3083">M</text>
+                    <text x="75" y="60" font-family="'Inter', sans-serif" font-size="35" font-weight="bold" text-anchor="middle" fill="#1f3083">T</text>
+                    <text x="120" y="60" font-family="'Inter', sans-serif" font-size="35" font-weight="bold" text-anchor="middle" fill="#1f3083">M</text>
+                </svg>
+                <h1 class="text-2xl font-extrabold">MTM Technical Expert</h1>
+                <p class="text-gray-400">Please log in to continue</p>
+            </div>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="username" class="sr-only">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Username" required class="w-full p-3 rounded-full border-2 border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200">
+                </div>
+                <div>
+                    <label for="password" class="sr-only">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Password" required class="w-full p-3 rounded-full border-2 border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200">
+                </div>
+                <button type="submit" id="login-button" class="w-full p-3 bg-red-600 text-white rounded-full font-bold shadow-lg hover:bg-red-700 transition-colors duration-200">
+                    Login
+                </button>
+            </form>
+            <p id="login-error" class="text-red-500 text-center text-sm hidden">Invalid username or password.</p>
+        </div>
+    </div>
+
+    <!-- Chat App Container (Initially Hidden) -->
+    <div id="chat-app-container" class="bg-gray-900 text-gray-200 rounded-3xl shadow-2xl overflow-hidden w-full max-w-4xl chat-container border border-gray-700 hidden">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-red-800 to-red-700 text-white p-5 rounded-t-3xl shadow-lg flex flex-col sm:flex-row items-center justify-between relative z-10 border-b-2 border-red-600">
+            <div class="flex items-center gap-2 mb-2 sm:mb-0">
+                <svg width="60" height="40" viewBox="0 0 150 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logoTitleChat">
+                    <title id="logoTitleChat">MTM Logo</title>
+                    <ellipse cx="75" cy="50" rx="75" ry="35" fill="#1f3083" />
+                    <rect x="12" y="25" width="36" height="50" rx="25" fill="#f87171" />
+                    <rect x="57" y="25" width="36" height="50" rx="25" fill="#f87171" />
+                    <rect x="102" y="25" width="36" height="50" rx="25" fill="#f87171" />
+                    <text x="30" y="60" font-family="'Inter', sans-serif" font-size="35" font-weight="bold" text-anchor="middle" fill="#1f3083">M</text>
+                    <text x="75" y="60" font-family="'Inter', sans-serif" font-size="35" font-weight="bold" text-anchor="middle" fill="#1f3083">T</text>
+                    <text x="120" y="60" font-family="'Inter', sans-serif" font-size="35" font-weight="bold" text-anchor="middle" fill="#1f3083">M</text>
+                </svg>
+                <h1 id="header-title" class="text-lg font-extrabold break-words leading-tight">MTM Technical Expert</h1>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="mode-general" class="taskbar-btn active p-2 text-xs sm:text-sm font-semibold transition-all duration-300 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-400">General</button>
+                <button id="mode-proprietary" class="taskbar-btn p-2 text-xs sm:text-sm font-semibold transition-all duration-300 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-400">MTM Specific</button>
+            </div>
+        </header>
+
+        <!-- Messages -->
+        <div id="messages-container" class="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-800">
+            <div id="welcome-container" class="flex flex-col items-center justify-center text-center h-full p-6 space-y-8 welcome-animation">
+                <svg class="w-full max-w-xl md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto robot-head-animation" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="robotTitle">
+                    <title id="robotTitle">Friendly Robot Head</title>
+                    <defs><filter id="shadow"><feDropShadow dx="2" dy="4" stdDeviation="4" flood-color="rgba(0,0,0,0.2)"/></filter></defs>
+                    <ellipse cx="300" cy="400" rx="250" ry="175" fill="#ffffff" stroke="#101c40" stroke-width="12" filter="url(#shadow)"/>
+                    <path d="M90,320 Q300,290 510,320 L510,500 Q300,530 90,500 Z" fill="#101c40"/>
+                    <circle cx="300" cy="220" r="40" fill="#00ffff" stroke="#101c40" stroke-width="10"/>
+                    <circle cx="210" cy="400" r="20" fill="#00ffff"/>
+                    <circle cx="390" cy="400" r="20" fill="#00ffff"/>
+                    <path d="M250,470 Q300,490 350,470" fill="none" stroke="#00ffff" stroke-width="8" stroke-linecap="round"/>
+                    <path d="M50,400 L20,350" stroke="#101c40" stroke-width="8" stroke-linecap="round"/>
+                    <path d="M20,350 L20,250" stroke="#101c40" stroke-width="8" stroke-linecap="round"/>
+                    <circle cx="20" cy="250" r="15" fill="#00ffff" stroke="#101c40" stroke-width="4"/>
+                    <path d="M550,400 L580,350" stroke="#101c40" stroke-width="8" stroke-linecap="round"/>
+                    <path d="M580,350 L580,250" stroke="#101c40" stroke-width="8" stroke-linecap="round"/>
+                    <circle cx="580" cy="250" r="15" fill="#00ffff" stroke="#101c40" stroke-width="4"/>
+                </svg>
+                <h2 class="text-xl md:text-3xl font-bold text-gray-200">Hello, I'm Zahrul, your MTM Technical Expert!</h2>
+                <p id="welcome-text" class="text-xs sm:text-base text-gray-400 max-w-lg">I can provide general knowledge or MTM-specific information. How can I assist you today?</p>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <form id="chat-form" class="p-4 border-t border-gray-700 bg-gray-900 shadow-inner">
+            <!-- Preview / attachment bar -->
+            <div id="image-preview-container" class="hidden mb-2 p-2 bg-gray-700 rounded-xl flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <img id="image-preview" src="" alt="Image preview" class="h-16 w-16 object-cover rounded-lg hidden"/>
+                    <div id="doc-chip" class="hidden tag"></div>
+                    <span id="file-name" class="text-sm text-gray-300"></span>
+                </div>
+                <button type="button" id="clear-image" class="p-1 rounded-full text-gray-400 hover:bg-gray-600 hover:text-white transition-colors duration-200" title="Remove attachment">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-2 relative">
+                <!-- Attachment (now supports images + docs) -->
+                <label for="file-input" class="p-2 bg-gray-700 text-gray-200 rounded-full shadow-lg hover:bg-gray-600 cursor-pointer transition-colors duration-200" title="Attach image or document">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13.5" />
+                    </svg>
+                </label>
+                <input
+                    type="file"
+                    id="file-input"
+                    class="hidden"
+                    accept="image/*,.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                />
+
+                <input
+                    id="user-input"
+                    type="text"
+                    class="flex-1 p-2 rounded-full border-2 border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200 text-sm"
+                    placeholder="Ask me a question..."
+                />
+                <div id="prompt-suggestions" class="absolute hidden bg-gray-700 text-gray-200 rounded-lg shadow-lg mt-1 w-full top-full">
+                    <div class="p-2 hover:bg-gray-600 cursor-pointer" data-prompt="Draw a transformer core diagram">Draw a transformer core diagram</div>
+                    <div class="p-2 hover:bg-gray-600 cursor-pointer" data-prompt="Summarize the uploaded document">Summarize the uploaded document</div>
+                    <div class="p-2 hover:bg-gray-600 cursor-pointer" data-prompt="Calculate transformer efficiency">Calculate transformer efficiency</div>
+                </div>
+                <button type="submit" id="send-button" class="p-2 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-colors duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Image Maximizer Modal -->
+    <div id="image-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 hidden p-4">
+        <span id="close-modal" class="absolute top-4 right-6 text-white text-5xl font-bold cursor-pointer transition-transform duration-200 hover:scale-110">&times;</span>
+        <img id="modal-image" src="" alt="Maximized View" class="max-w-[95vw] max-h-[95vh] object-contain rounded-lg shadow-2xl">
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // ===================================
+        // DOM Elements
+        // ===================================
+        const loginContainer = document.getElementById('login-container');
+        const chatAppContainer = document.getElementById('chat-app-container');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const messagesContainer = document.getElementById('messages-container');
+        const sendButton = document.getElementById('send-button');
+        const modeGeneralBtn = document.getElementById('mode-general');
+        const modeProprietaryBtn = document.getElementById('mode-proprietary');
+        const welcomeContainer = document.getElementById('welcome-container');
+        const welcomeText = document.getElementById('welcome-text');
+
+        const fileInput = document.getElementById('file-input');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const fileNameSpan = document.getElementById('file-name');
+        const clearImageBtn = document.getElementById('clear-image');
+        const docChip = document.getElementById('doc-chip');
+        const promptSuggestions = document.getElementById('prompt-suggestions');
+        
+        const imageModal = document.getElementById('image-modal');
+        const modalImage = document.getElementById('modal-image');
+        const closeModalBtn = document.getElementById('close-modal');
+
+        // ===================================
+        // State
+        // ===================================
+        let attachedImageData = null;
+        let attachedImageMimeType = null;
+        let uploadedDocumentText = "";
+        let uploadedDocumentName = "";
+        let editingMessageIndex = null;
+        let originalPlaceholder = "Ask a question...";
+        let userApiKey = ''; // To store the user's API key
+
+        marked.setOptions({ breaks: true, gfm: true, silent: true });
+
+        // ===================================
+        // Login & API Key Logic
+        // ===================================
+        const credentials = {
+            "MCM": "1234",
+            "MTM": "1234",
+            "shahmi": "1234",
+            "fathin": "5678"
+        };
+
+        function getApiKey() {
+            if (userApiKey) {
+                return userApiKey;
+            }
+            userApiKey = prompt("Please enter your Google AI API Key to enable generative features:");
+            if (!userApiKey) {
+                alert("An API Key is required to use the chatbot's generative features. The app will not work correctly without it.");
+                return null;
+            }
+            return userApiKey;
+        }
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = loginForm.username.value;
+            const password = loginForm.password.value;
+
+            if (credentials[username] && credentials[username] === password) {
+                if (!getApiKey()) {
+                    return; 
+                }
+                loginContainer.classList.add('hidden');
+                chatAppContainer.classList.remove('hidden');
+                switchMode('general');
+            } else {
+                loginError.classList.remove('hidden');
+            }
+        });
+
+        // ===================================
+        // Persona / Knowledge Base
+        // ===================================
+        const mtmProprietaryKnowledge = `
+            You are Zahrul, the MTM Technical Expert. Your role is to act as a chatbot with extensive knowledge on power transformers, specifically drawing from the following MTM-specific information. You are knowledgeable about the following areas: theory, losses, construction, protection, components, accessories, tap changers, operation, insulation, testing, DGA, DGA analysis methods, understanding transformer nameplates, electrical tests, and maintenance.
+
+            MTM Proprietary Knowledge:
+            - **Core Function:** Transformers operate on "Faraday's law of electromagnetic induction," using an AC current in the primary winding to generate magnetic flux, which induces an EMF in the secondary winding.
+            - **Types:** Step-up (more secondary turns) and Step-down (fewer secondary turns).
+            - **Energy Losses:**
+                - **Iron (Core) Losses:** Constant, voltage-dependent losses including **Hysteresis Loss** and **Eddy Current Loss**.
+                - **Copper (Ohmic) Losses:** Load-dependent (I²R).
+                - **Stray Losses:** Caused by leakage flux.
+                - **Dielectric Losses:** Occur in insulating materials.
+            - **Cooling:** AN, AF, SF6 (dry); ONAN, ONAF, OFAF, OFWF (oil-immersed).
+            - **Components/Accessories:**
+                - From your D&C presentation: Local Control Panel (LCP), Current Transformer (CT), Oil Temperature Indicator (OTI), Winding Temperature Indicator (WTI), Cooling Fan, Motor Drive, Lightning Arrestor & Isolator, Radiator & Cooling Fin, Cable Box & DC Conservator Tank.
+                - Other components: OLTC motor drive, radiators, conservator.
+            - **Protection/Maintenance:**
+                - From your M&T presentation: OLTC maintenance (overhaul), oil reconditioning/vacuuming, maintenance of breather, addressing corrosion.
+                - From your O&T presentation: Transformer guard circuit, Automatic Voltage Regulation (AVR) operation, Remote Tap Changer Control (RTCC).
+                - Other protection: preventive/corrective/predictive, monitoring (oil, PD, temperature, bushings PF/C, LTCs, cooling currents), faults (external/internal/through), Buchholz, PRD, DMCR.
+            - **DGA:** gases (H2, CH4, C2H6, C2H4, C2H2, CO, CO2), ratios, NEI indices, Duval triangles.
+            - **Testing:**
+                - From your M&T presentation: Winding Resistance Test, Turns Ratio Test, Insulation Resistance Test.
+                - Other tests: electrical tests.
+            - **Operation:**
+                - From your O&T presentation: Automatic Voltage Regulation Operation, Remote Tap Changer Control (RTCC), LCP fan control.
+                - Other operation: load/thermal performance, hot-spot, connections (delta-wye), OLTC, AVR, inrush, overexcitation, differential protection, online monitoring.
+            - **Standards:** IEEE/ANSI to IEC harmonization; DOE efficiency.
+            - **Transformer Quality and Procurement Standards:**
+                - Power transformers are custom-engineered-to-order (ETO) products, not off-the-shelf items. This makes the procurement process complex and risky.
+                - Purchasers are responsible for providing detailed specifications for rated voltage, frequency, power, cooling, insulation, etc. Poor specifications can lead to late-stage, costly problems.
+                - Comprehensive factory capability assessment is crucial. This goes beyond simple ISO 9001 certification and includes evaluating a manufacturer's technology base, design procedures, supply chain, manufacturing methods, testing facilities, and financial health.
+                - The CIGRE A2.36 guide outlines these assessment areas. The goal is to mitigate risks and ensure operational reliability.
+                - Quality assurance (QA) is a continuous process covering the entire transformer life cycle, from design to after-sales service. It relies on process documentation, QMS (e.g., ISO 9001), auditing for non-conformities, and continuous improvement (Plan Do Check Act cycle).
+                - Key standards bodies include NEMA, CIGRE, IEC, and IEEE. Compliance with these standards is essential for quality and performance.
+            - **Transformer Theory, Construction, and Operation:**
+                - **Section 1: Transformer Theory**
+                    - **1.1 Definition and History:**
+                        - Definition: Understand the IEC 60076-1 definition of a power transformer.
+                        - Historical Context: Recall the approximate age of transformer technology and the location of the first transformer.
+                    - **1.2 Types of Transformers:**
+                        - Identify and differentiate between the various types of transformers mentioned (e.g., Transmission, Step-Up, Supply, Distribution, Station/Unit, Special Transformers).
+                        - Understand the basic winding configurations: Autotransformer, Two Winding, and Three Winding.
+                    - **1.3 Basic Theory and Formulas:**
+                        - Electric Current & Magnetic Flux: Familiarise yourself with the formulas for electric current ($$U = L \frac{d\phi}{dt}$$, $$\phi = L.I$$) and magnetic flux ($$R_m = \frac{N^2 . I}{\phi}$$, $$R_m = \frac{l}{\mu_0 \mu_r A}$$).
+                        - Understand how magnetic flux can be increased (increase number of turns, increase current, decrease magnetic resistance).
+                        - Understand how magnetic resistance can be decreased (decrease length of flux path, increase cross-sectional area, increase magnetic permeability, choose core material).
+                        - Most Important Transformer Formula: Recall the relationship for balance of Ampere Turns ($$N_1 I_1 = N_2 I_2$$).
+                        - Understand the relationship between voltage, number of turns, and electromagnetic force ($$U = N e_W$$, $$\frac{U_1}{U_2} = \frac{N_1}{N_2}$$).
+                        - Recall the power balance equation ($$P_{in} = P_{out}$$).
+                        - Transformer Fundamental Relationship: Understand the definitions and relationships of the variables in the formulas: $$E = -N \frac{d\phi}{dt}$$, $$\phi = \phi_m \sin(\omega t)$$, $$U = N \phi_m \omega \cos(\omega t)$$, $$U_{max} = N \phi_m 2 \pi f$$, $$U_{rms} = 4.44 f N B_m A_g$$, and $$P = E.I$$.
+                    - **1.4 Equivalent Circuit and Impedance:**
+                        - Ideal Transformer Circuit: Identify the components of an ideal transformer equivalent circuit (Xp, Xs, Rp, Rs, Rc, Xm).
+                        - Reduced Parameters: Understand the concept of equivalent circuit with reduced parameters.
+                        - Impedance: Define reactance, winding resistance, and impedance, and know their proportional relationships.
+                    - **1.5 Losses in a Transformer:**
+                        - Types of Losses: Differentiate between No-load losses and Load losses.
+                        - No-Load Losses: Identify components: Iron losses (eddy currents, hysteresis losses), dielectric losses, and conductor losses in primary windings.
+                        - Recall associated formulas (e.g., $$P_{iron} = P_e + P_h$$, $$P_{iron} = c_1 B^{1.6}m f + c_2 B^2_m f^2$$, $$P{diel} = U^2 . \omega C . \tan \delta$$, $$P_{ohmic} = I^2 . R$$).
+                        - Load Losses: Identify components: Ohmic losses in primary and secondary windings (Copper Losses) and Extra losses (leakage/stray fields).
+                    - **1.6 Efficiency of Transformer:**
+                        - Formula: Understand the formula for transformer efficiency: $$% Efficiency = \frac{P_{output}}{P_{output} + P_{losses}} \times 100$$.
+                        - Loss Reduction: Recall methods to reduce copper loss (reduce total length, increase total conductor cross-section) and iron loss (reduce core weight, reduce flux density, increase core size).
+                        - Maximum Efficiency Condition: State the condition for maximum efficiency (Copper loss = Iron loss).
+                - **Section 2: Transformer Construction**
+                    - **2.1 Transformer Components:**
+                        - Identify the major components of a power transformer from a diagram: Bushing, Oil, Tank, Core, Cooling System, Rating Plate, Winding, Tap Changer, Measuring & Protection Equipment.
+                    - **2.2 Core Design and Construction:**
+                        - Active Part Assembly: Identify components within the active part in assembly (Top Frame, Clamping wood, Core Limb, Cooling Ducts, Bushing, Lead, Winding Coil, Lead Support, Bottom Frame).
+                        - Core Forms: Differentiate between Core Form and Shell Form designs and their key characteristics (e.g., windings surrounding core vs. core surrounding windings, short circuit forces, surge voltage distribution, impedance, oil requirements).
+                        - Magnetic Circuit: Understand the different leg configurations for single-phase and three-phase core and shell type magnetic circuits.
+                        - Core Loss Reduction: Recall methods to reduce core loss (thin sheets, high-quality core plate, insulation, interlacing, large core-area).
+                        - Core Assembly Process: Understand the general steps in core assembly, including cutting and building processes (automated and manual).
+                        - Core Lamination: Understand how core laminations are held together.
+                        - Laps and Joints: Differentiate between Mitred joint and Step Lap joint construction and their purpose in reducing magnetisation losses.
+                        - Magnetic Core Material Properties: Past vs. Present: Compare properties of past (hot milled dynamo sheet) and present (magnetic alloy, CRGO) core materials.
+                        - CRGO Lamination Grades: Recognise different grades and thicknesses of CRGO laminations (e.g., M6, M5, M4, M3, HI-B, Lazer Grade).
+                        - Core Losses: Understand how core losses vary with different materials and thicknesses.
+                    - **2.3 Windings Construction and Design:**
+                        - Types of Windings: Categorize windings into Low Voltage, High Voltage, Medium Voltage, and Regulation Windings (Tap Windings).
+                        - Winding Types: Helical winding: Characteristics and applications (few turns, large number of parallel conductors, high current, withstand temperature rise/short circuit/impulse).
+                        - Disc winding: Characteristics and applications (many turns, one or few strands in parallel, HV windings, large number of turns and comparatively small current, easy to construct, limitations on parallel conductors per turn, voltage distribution during impulse tests).
+                        - Continuous Disc Winding: Understand its characteristics and limitations.
+                        - Interleaved Winding: Understand its advantages (improved voltage distribution, series capacitance, withstand impulse condition) and complexity.
+                        - Inter-Shield Winding: Understand its application for high voltage classes and the role of shields.
+                        - Layer Winding: Characteristics and applications (up to 100kV, axially wounded, voltage distribution, shield usage).
+                        - Windings Materials & Properties: Conductor Material: Identify typical conductor materials (Oxygen free copper, sometimes aluminium) and types of conductors (Transposed parallel, Rectangular cable, CTCs).
+                        - Insulation: Understand the materials used for insulation (insulation paper, resin coated lacquer) and the construction for cooling (oil flow).
+                    - **2.4 Transformer Insulation System:**
+                        - Main Insulation Components: Identify the main insulation components (Kraft Paper, Transformer Board, Wood).
+                        - Properties: Recall the properties of Kraft Paper (thermally upgraded, degree of polymerisation, mechanical/electrical properties, impurities), Transformer Board (special fibrewood, mechanical/electrical properties, impurities, homogenous, non-gassing bonding), and Wood (less demanding electrical properties, high mechanical stress).
+                        - Insulation Design: Understand the role of barriers in oil flow and the overall insulation structure for HV, LV, and tertiary windings.
+                        - Major Insulation Categories: Differentiate between major insulation, minor insulation, and phase-to-phase insulation.
+                        - Composite Laminated Insulating Systems: Understand Resin-enameled wires and Resin-laminated structures.
+                    - **2.5 Cooling System:**
+                        - Cooling Medium: Differentiate between internal and external cooling mediums (oil, liquid with fire point >300°C, air, water).
+                        - IEC Cooling System Code: Understand the four-letter IEC designation code for cooling systems (e.g., ONAN, ONAF, OFAF, ODAF, FOW).
+                        - Cooling Mediums: Identify common cooling mediums (Mineral Oil, Dry Type Transformer Air, Silicone Fluid, Natural or Synthetic Ester Fluid).
+                        - Cooling System Designs: Familiarise yourself with Radiator + Fan, Air Cooler, Oil Pump, Oil – Water Exchange System, and Double Wall Exchange System.
+                        - Cooling Design: Differentiate between Non-Directed Oil Flow and Directed Oil Flow.
+                    - **2.6 Short Circuit Integrity:**
+                        - Causes of Stress: Understand how short circuit current gives rise to mechanical force and temperature rise.
+                        - Forces: Differentiate between Axial forces (conductor tilting, axial bending of spacers, spiralling) and Radial forces (buckling on inner winding, diameter increase of outer winding, spiralling of end turns).
+                        - Clamping System: Understand the role of the clamping system in maintaining short circuit integrity.
+                    - **2.7 Components/Accessories:**
+                        - Bushings: Types: Identify types of bushing based on insulation (Porcelain, Oil Filled, Paper insulated condenser type - Resin bonded paper, Resin impregnated paper, Oil impregnated paper).
+                        - Designs: Differentiate between Oil-Air, Oil-Oil, Oil-SF6, and Air-Air bushings.
+                        - Construction: Understand the construction differences of various bushing types (OIP, RIP, Condenser Bushings).
+                        - Connection Systems: Differentiate between draw lead, removable conductor, and fixed conductor.
+                        - Electric Field/Voltage Distribution: Understand how electric field and voltage are distributed in bushings, and the concept of capacitive grading.
+                        - Tapchangers: Functions: Understand their role in controlling secondary voltage and power flow.
+                        - Principle Operation: Differentiate between On Load Tap Changer (OLTC) and De-Energised Tap Changer (DETC).
+                        - Regulating Winding Position: Understand where the regulating winding can be positioned (HV/LV, neutral, series/parallel).
+                        - Working Principle: Understand the general working principle involving motor drive unit, regulating transformer, and automatic voltage regulating relay.
+                        - Fundamental Construction: Understand the roles of the Diverter and Tap Selector.
+                        - Tap Changer Sequence (Diverter/Selector): Understand the step-by-step operation of changing tap positions.
+                        - Technology: Compare Oil-Type and Vacuum-Type tapchangers.
+                        - Connections: Differentiate Linear, Plus/minus, and Coarse/fine tap changer connections.
+                        - Position in Tank: Understand different tank positions for OLTCs (in tank, out of tank, with barrier board).
+                        - Transformer Tank: Purpose: Understand the tank's functions (protecting inner materials, conserving oil, emitting heat, facilitating movement of active part, evacuating active part).
+                        - Construction: Differentiate between Conventional tank and Bell tank, and their respective pros and cons. Identify tank components (Conservator, Lifting Lug, Box stiffeners, Jacking Pad, Skid Base).
+                        - Preservation System: Types: Identify various oil preservation systems (Free Breathing, Sealed/Pressurised Breathing, Pressurised Inert Gas Sealed System, Free Breathing Conservator, Conservator with Air Bag/Bladder).
+                        - Moisture Prevention: Understand the function of Dehydration Breather and Air Bag/Air Cell.
+                        - Gaskets: Understand their purpose and properties for sealing.
+                        - Transformer Oil Properties: Electrical Properties: Recall Electric breakdown strength, Dielectric Dissipation Factor, Resistivity.
+                        - Physical Properties: Recall Viscosity, Flash point, Pour point, Density.
+                        - Chemical Properties: Recall Oxidation Stability, Corrosive Sulphur, Water Content, Neutralisation Value.
+                        - Gas Content: Understand its importance in Dissolved Gas Analysis.
+                        - Functions: Remember the two main functions of transformer oil: electrical insulation and cooling medium.
+                        - Rating Plate: Understand its importance as the first reference for engineers and technicians.
+                - **Section 3: Transformer Protection**
+                    - **3.1 Types of Faults:**
+                        - External Faults: Identify external faults (Short Circuits, High Voltage Disturbances - Transient Surge Voltages, Power Frequency Voltages).
+                        - Internal Faults: Identify internal faults (Earth Faults, Phase-phase Faults, Inter-turn faults, Core Faults).
+                    - **3.2 Mechanical Protection:**
+                        - Devices: Identify mechanical protection devices (Buchholz Relay, Winding Temperature Monitoring, Oil Temperature Monitoring, Oil Level Alarm, Pressure Relief Device, Air Bag Protection, Rapid Pressure Rise Relay).
+                        - Buchholz Relay: Function: Understand its function to detect gassing, rapid fluid movement, and oil loss.
+                        - Arrangement: Understand its placement and connection to the conservator and main tank.
+                        - Operation (Cases): Understand how it operates for gas accumulation, insulating liquid loss, and insulating liquid flow (pressure wave).
+                        - Gas Sampling: Recall the ability to sample gas from the relay.
+                        - Temperature Monitoring: Purpose: To indicate hottest spot in winding and top oil temperature.
+                        - Devices: Understand Temperature Indicators and Fibre Optics Sensor.
+                        - Working Principle: Understand the working principle of conventional temperature indicators (e.g., use of thermometer bulb, heating coil).
+                        - Oil Level Indicator: Function: To indicate oil level and prevent inadvertent operation of Buchholz Relay.
+                        - Working Principle: Understand its reliance on operating temperature and air bag movement.
+                        - Pressure Relief Device (PRD): Function: To detect excessive pressure build-up.
+                        - Mechanism: Understand its working principle for pressure relief.
+                        - Rapid Pressure Rise Relay: Function: To detect sudden pressure transients during internal faults. Note: It does not act as a pressure relief device.
+                    - **3.3 Surge Protection:**
+                        - Function: To discharge excessive surge voltages to ground and protect the insulation system.
+                        - Surge Arrestors: Understand their role in limiting voltages and the concept of protective margin.
+                        - Interconnection: Understand different surge arrestor interconnection arrangements (Poor, Good, Very Good).
+                        - Insulation Coordination: Recall tips for insulation coordination (lower protective level, residual voltage, voltage time withstand curves, atmospheric conditions).
+                    - **3.4 Transformer Differential Protection:**
+                        - Application: Understand its use for large transformers (>5MVA).
+                        - Speed: Recognise it as a fast operation scheme.
+                        - Measuring Principles: Understand the circulating current principle and restricted earth fault protection.
+                        - Biasing Technique: Understand its employment to maintain stability for heavy trough fault current.
+                        - Connection: Understand the basic differential connection and the concept of a protected zone.
+                        - Considerations: Recall factors for correct application (CT ratio, winding connection, current magnitude, phase shift, zero sequence current).
+                        - Restricted Earth Fault Protection: Understand its function for earth faults within the protected zone and its use of high impedance principle and stability level.
+                        - Standby Earth Fault Protection: Understand its application and location (Neutral Cable, bus section, feeder, bus panel).
+                - **Section 4: Operation of Power Transformer**
+                    - **4.1 Life of a Transformer:**
+                        - Loading Impact: Understand how loading affects transformer life (Power (U.I) -> Losses, I2R).
+                        - Temperature Impact: Understand the impact of winding hot spot temperature on insulation life (Rule of Thumb: life of insulation depends on temperature rise, Lifetime/2 for 6-8°C rise).
+                        - Factors Affecting Life: Thermal Ageing of Paper Insulation: Hot spot determines life expectancy, influences mechanical strength and dielectric properties.
+                        - Bubble Generation: Caused by high temperature, generating free air/gas, lower dielectric strength.
+                        - Copper Sulphide Deposition: Increases electric conductivity, risks dielectric strength reduction, depends on oil.
+                        - Static Electrification: Caused by high oil flow and increases with temperature.
+                    - **4.2 Loading Capability:**
+                        - Thermal Capacity: Transformer rating is based on thermal capacity.
+                        - Electrical Insulation System (EIS): Critical factor for transformer loading capability.
+                        - IEC 60076-7 Limits: Understand recommended maximum operating limits for top oil temperature, winding hot-spot temperature, and other metallic hot-spot temperature under normal cyclic loading.
+                        - Critical Temperatures: Recall the critical winding hot spot and oil temperatures for TNB New Design.
+                    - **4.3 Vector Group:**
+                        - Definition: Understand that a vector group indicates the internal connections of transformer windings and the phase angle difference between them.
+                        - Clock Notation: Understand that vector group is represented by Clock Notation.
+                        - Types & Representation: Letter Notation: Capital letter for HV Winding, small letter for LV Winding.
+                        - Winding Types: Wye (Y), Delta (D), Zig-Zag (Z), Neutral (N), Auto transformer (a).
+                        - Clock Number Notation: Understand that each hour represents 30 degrees of phase displacement.
+                        - Connections (Benefits/Disadvantages): Star or Wye (Y) connection: Benefits (lower insulation requirement, tap changer operation at lower voltage) and Disadvantage (requires stabilising Delta Winding, overheating).
+                        - Delta (D) Connection: Benefits (phase current, less number of turns, enables harmonics circulation) and Disadvantage (higher insulation, not practical for low power rating).
+                        - Zig-Zag (Z) Connection: Benefits (low zero sequence impedance, reduces harmonics) and Disadvantage (difficulty to balance winding, costly).
+                        - Phase Rotation: Remember that phase rotation is always counter-clockwise.
+                        - Vector Group Connection Examples: Be able to interpret YNd1, YNd11, Dyn1, etc.
+                    - **4.4 Paralleling of Transformers:**
+                        - Requirements: Understand the four main requirements for paralleling transformers to ensure proper load sharing and avoid short circuits:
+                        - Same Voltage Ratio (on each tap): Inequality causes circulating current.
+                        - Equal per unit leakage impedance, Z and same ratio of X/R: Unequal impedance causes difference in load sharing.
+                        - Same Polarity: Wrong polarity causes short circuit.
+                        - Same Phase Sequence: Incorrect phase sequence causes short circuit.
+                        - Zero Relative Phase Displacement: Understand the four groups of phase connections and which can be paralleled (e.g., YNyn0 & Dyn0, YNd1 & YNd11, reversing phase sequence).
+                        - Quiz: Transformer Fundamentals
+                        - Instructions: Answer each question in 2-3 sentences.
+                        - According to IEC 60076-1, what is the primary function of a power transformer?
+                        - List three different types of transformers based on their application or winding configuration.
+                        - Explain how increasing the number of turns on a winding affects the magnetic flux in a transformer.
+                        - What are the two main categories of losses in a transformer, and what causes them?
+                        - State the condition for a transformer to achieve maximum efficiency.
+                        - Name at least three major components of a power transformer.
+                        - What is the primary difference between a Core Form and a Shell Form transformer design?
+                        - Briefly describe the purpose of a tap changer in a transformer.
+                        - Why is the Buchholz Relay considered an important mechanical protection device for transformers?
+                        - List four essential conditions that must be met for successful parallel operation of transformers.
+                        - Answer Key for Quiz
+                        - A power transformer is a static piece of apparatus with two or more windings. Its primary function is to transform a system of alternating voltage and current into another system of voltage and current, usually of different values, while maintaining the same frequency for transmitting electrical power.
+                        - Different types of transformers include Transmission transformers, Step Up transformers, Supply transformers, and Distribution transformers. Other types mentioned are Station/Unit Transformers and Special Transformers.
+                        - According to the basic theory of transformers, magnetic flux can be increased by increasing the number of turns (N) on the winding. This is evident from the formula for magnetic reluctance, $$R_m = N^2 I / \phi$$, where increasing N would lead to an increase in flux for a given reluctance and current.
+                        - The two main categories of losses in a transformer are No-load losses and Load losses. No-load losses primarily consist of iron losses (eddy currents and hysteresis losses), dielectric losses, and conductor losses in the primary winding, while Load losses are mainly ohmic losses (copper losses) and extra losses due to leakage fields.
+                        - A transformer achieves maximum efficiency when its copper losses (load losses) are equal to its iron losses (no-load losses). This balance point optimizes the transformer's operation by minimizing total energy dissipation.
+                        - Three major components of a power transformer are the Core, Windings (Primary and Secondary), and the Tank which contains insulating oil. Other key components include Bushings, Cooling System, Tap Changer, and the Rating Plate.
+                        - The primary difference between a Core Form and a Shell Form transformer design lies in the arrangement of the windings and core. In a Core Form, the windings surround the core, whereas in a Shell Form, the core surrounds the windings.
+                        - A tap changer's primary purpose is to control the secondary voltage level of the transformer. By adjusting the number of turns in the transformer winding, it allows for dynamic control of reactive power and the flow of power in parallel supplies.
+                        - The Buchholz Relay is crucial for mechanical protection because it can detect incipient faults within the transformer by sensing gas accumulation, rapid fluid movement, or insulating liquid loss. These conditions indicate serious problems and trigger alarms or disconnect the transformer to prevent further damage.
+                        - For successful parallel operation of transformers, four essential conditions must be met: they must have the same voltage ratio (on each tap), equal per unit leakage impedance and the same X/R ratio, same polarity, and the same phase sequence (resulting in zero relative phase displacement).
+                        - Essay Format Questions
+                        - Discuss the various types of losses in a power transformer and explain how each type contributes to the overall inefficiency. Propose design and operational strategies that can be employed to minimize these losses.
+                        - Compare and contrast the Core Form and Shell Form designs of power transformers. Include a discussion of their key characteristics, advantages, and disadvantages, particularly in relation to short circuit forces, impedance, and manufacturing considerations.
+                        - Explain the importance of the insulation system in a power transformer. Describe the different materials used for insulation and their specific properties, as well as the design considerations for effective insulation within the transformer.
+                        - Detail the function and working principle of a tap changer in a power transformer. Differentiate between On Load Tap Changers (OLTC) and De-Energised Tap Changers (DETC), and discuss the various positions in which the regulating winding can be located.
+                        - Describe the critical conditions that must be satisfied for two or more transformers to operate successfully in parallel. Elaborate on the consequences of failing to meet each of these conditions, providing examples where appropriate.
+                        - Glossary of Key Terms
+                        - Alternating Current (AC): An electric current which periodically reverses direction, in contrast to direct current (DC) which flows only in one direction.
+                        - Ampere Turns: A unit of magnetomotive force, equal to the product of the number of turns in a coil and the current in amperes flowing through it ($$N \times I$$).
+                        - Autotransformer: A transformer with only one winding that acts as both the primary and secondary.
+                        - Axial Forces: Mechanical forces acting along the axis of the windings, particularly significant during short circuits.
+                        - Buchholz Relay: A gas-actuated relay used for the protection of oil-filled transformers against internal faults, detecting gas accumulation, rapid oil movement, and oil level drops.
+                        - Bushings: Insulators that allow electrical conductors to pass through the grounded tank of a transformer, providing insulation and mechanical support.
+                        - Capacitive Grading: A technique used in bushings to control the electric field and voltage distribution uniformly, typically by using conductive layers.
+                        - Cold Rolled Grain Oriented (CRGO) Steel: A type of silicon steel with a grain structure oriented to maximize magnetic properties in the rolling direction, commonly used for transformer cores to reduce core losses.
+                        - Conductor Losses (Copper Losses): Energy losses in transformer windings due to the resistance of the conductor material, expressed as $$I^2R$$.
+                        - Conservator: An external tank connected to the main transformer tank, designed to allow for the expansion and contraction of insulating oil due to temperature changes.
+                        - Cooling System: The system designed to dissipate heat generated within the transformer, typically using insulating oil and external coolers (radiators, fans, pumps).
+                        - Core Form Transformer: A transformer design where the windings surround the laminated magnetic core.
+                        - Core Losses (Iron Losses): Energy losses occurring in the magnetic core of a transformer due to eddy currents and hysteresis.
+                        - Continuously Transposed Conductors (CTCs): A type of conductor construction used in transformer windings, consisting of multiple insulated strands transposed to reduce eddy current losses.
+                        - Delta (D) Connection: A three-phase winding connection where the ends of each winding are connected to the beginning of the next, forming a closed loop (triangle).
+                        - De-Energised Tap Changer (DETC): A tap changer that requires the transformer to be de-energised (disconnected from the supply) before the tap position can be changed.
+                        - Dielectric Losses: Energy losses occurring in the insulating material of a transformer, particularly in the oil, due to its imperfect insulating properties.
+                        - Differential Protection: A protection scheme for transformers that compares the current entering and leaving the transformer to detect internal faults.
+                        - Disc Winding: A type of transformer winding construction where coils are wound in a series of flat discs, commonly used for high voltage windings.
+                        - Eddy Currents: Circulating currents induced in the transformer core due to changing magnetic flux, which contribute to core losses.
+                        - Efficiency: The ratio of output power to input power, indicating how effectively a transformer converts electrical energy, usually expressed as a percentage.
+                        - Electrical Insulation System (EIS): The complete system of insulating materials and their arrangement within the transformer, crucial for its operational integrity and lifespan.
+                        - Electromagnetic Induction: The process by which a changing magnetic field induces an electromotive force (voltage) in a conductor.
+                        - Electromotive Force (EMF): The voltage generated by a battery or by electromagnetic induction.
+                        - External Cooling Medium: The medium used outside the transformer tank to dissipate heat, such as air or water.
+                        - Helical Winding: A type of transformer winding construction where conductors are wound in a spiral, typically used for low voltage and high current applications.
+                        - Hot Spot Temperature: The highest temperature within the transformer windings, which is a critical factor influencing the life of the insulation.
+                        - Hysteresis Losses: Energy losses in the transformer core due to the magnetisation and demagnetisation process, caused by the lag of magnetic flux behind the magnetising force.
+                        - IEC 60076-1: An international standard that defines power transformers, their characteristics, and testing methods.
+                        - Impedance: The total opposition to the flow of alternating current in an electrical circuit, combining resistance and reactance.
+                        - Insulating Paper (Kraft Paper): A fibrous material used extensively in transformers for insulation due to its excellent dielectric and mechanical properties.
+                        - Insulation Coordination: The selection of the insulation strength of electrical equipment in relation to the expected overvoltages to ensure an acceptable risk of insulation failure.
+                        - Interleaved Winding: A variation of disc winding designed to improve the voltage distribution and withstand impulse conditions by strategically connecting discs.
+                        - Internal Cooling Medium: The medium inside the transformer tank used to transfer heat from the windings and core, primarily insulating oil.
+                        - Layer Winding: A winding construction where conductors are wound in layers, often used for moderate voltage applications.
+                        - Leakage Flux (Stray Fields): Magnetic flux that does not link both the primary and secondary windings, contributing to extra losses.
+                        - Load Losses: Losses that vary with the load current of the transformer, primarily copper losses and extra losses due to leakage fields.
+                        - Magnetic Flux: A measure of the total number of magnetic field lines passing through a given area.
+                        - Magnetic Reluctance ($$R_m$$): The opposition offered by a magnetic circuit to the passage of magnetic flux.
+                        - Mechanical Protection: Devices and systems designed to protect the physical integrity of the transformer from internal faults and excessive stresses.
+                        - Mineral Oil: The most common type of insulating and cooling oil used in power transformers.
+                        - Mitred Joint: A type of joint construction in transformer cores where laminations are cut at an angle to reduce reluctance and magnetisation losses.
+                        - No-Load Losses: Losses that occur even when the transformer is not supplying any load, primarily core losses and dielectric losses.
+                        - On Load Tap Changer (OLTC): A tap changer that allows the tap position to be changed while the transformer is energised and supplying load.
+                        - Parallel Operation: Connecting two or more transformers on both their primary and secondary sides to share the load.
+                        - Phase Displacement: The angular difference between the voltages or currents in different phases of a polyphase system.
+                        - Phase Sequence: The order in which the voltages in the phases of a polyphase system reach their peak values.
+                        - Polarity: The instantaneous direction of the induced voltages in the windings of a transformer, indicating how the windings are phased relative to each other.
+                        - Power Factor: The ratio of real power to apparent power in an AC circuit, indicating how effectively electrical power is being converted into useful work.
+                        - Pressure Relief Device (PRD): A safety device designed to release excessive pressure build-up within the transformer tank to prevent rupture.
+                        - Rating Plate: A plate attached to the transformer providing essential technical data and specifications.
+                        - Reactance: The opposition to the flow of alternating current caused by inductance or capacitance in a circuit.
+                        - Rapid Pressure Rise Relay: A protection device that detects sudden increases in pressure within the transformer tank, typically indicating a severe internal fault.
+                        - Restricted Earth Fault Protection: A specific type of earth fault protection scheme that protects against earth faults occurring only within a defined zone of the transformer.
+                        - Resin Impregnated Paper (RIP): A type of insulation used in bushings where paper is impregnated with resin, offering good electrical and mechanical properties.
+                        - Resin Impregnated Paper (OIP): A type of insulation used in bushings where paper is impregnated with oil, similar to RIP but with oil as the impregnating medium.
+                        - Shell Form Transformer: A transformer design where the laminated magnetic core surrounds the windings.
+                        - Short Circuit Integrity: The ability of a transformer to withstand the mechanical and thermal stresses generated during a short circuit fault.
+                        - Star (Y) Connection (Wye Connection): A three-phase winding connection where one end of each phase winding is connected to a common neutral point, and the other ends are connected to the line terminals.
+                        - Step Lap Joint: A type of joint construction in transformer cores that involves overlapping laminations in a stepped pattern to reduce core losses.
+                        - Step Up Transformer: A transformer designed to increase voltage from primary to secondary.
+                        - Surge Arrestor: A protective device that limits transient overvoltages by diverting surge currents to ground, protecting electrical equipment from lightning strikes or switching surges.
+                        - Tap Changer: A device used to adjust the turns ratio of a transformer, thereby changing its output voltage.
+                        - Transformer Board: A pressboard material used for insulation and structural support in transformers.
+                        - Transient Surge Voltages: Short-duration, high-magnitude voltage disturbances in an electrical system.
+                        - Vector Group: A designation that indicates the winding connections (e.g., Star, Delta, Zig-Zag) and the phase displacement between the high voltage and low voltage windings of a three-phase transformer.
+                        - Winding Resistance: The resistance of the conductor material in the transformer windings, contributing to copper losses.
+                        - Zig-Zag (Z) Connection: A special three-phase winding connection used to provide a neutral point and improve the handling of unbalanced loads and harmonics.
+
+            **Your goal is to be a helpful, intuitive, and creative technical expert. Avoid generic or repetitive responses. Instead, provide clear, concise, and engaging answers. Always suggest a logical follow-up question related to the topic you just discussed.**
+        `;
+
+        const generalKnowledge = `
+            You are Zahrul, a general technical expert on power transformers. You can also solve mathematical problems. When a user asks a math question, provide a step-by-step solution and the final answer. For other topics, provide high-level, non-proprietary explanations. If a question is too specific or requires proprietary information, explain your limitation.
+
+            **Your goal is to be a helpful, intuitive, and creative technical expert. Avoid generic or repetitive responses. Instead, provide clear, concise, and engaging answers. Always suggest a logical follow-up question related to the topic you just discussed.**
+
+            General Knowledge:
+            - **Transformer Quality and Procurement Standards:**
+                - Power transformers are not standard products; they are custom-designed for specific customer requirements. This requires a very detailed procurement process.
+                - The buyer is responsible for providing clear and complete technical specifications to the manufacturer to ensure the transformer meets their needs.
+                - A thorough evaluation of a manufacturer's factory capabilities is critical to manage risks and ensure the transformer's quality. This includes checking their design processes, manufacturing methods, and adherence to quality standards.
+                - Quality assurance (QA) is a key part of the entire lifecycle of a transformer, from design to delivery. It involves strict control of processes and regular audits.
+                - Reputable international organizations and standards bodies like CIGRE, NEMA, IEC, and IEEE provide guidance and standards for transformer procurement and manufacturing.
+        `;
+
+        let currentMode = 'general';
+        let chatHistory = {
+            'general': [{ role: 'user', parts: [{ text: generalKnowledge }] }],
+            'proprietary': [{ role: 'user', parts: [{ text: mtmProprietaryKnowledge }] }],
+        };
+
+        // ===================================
+        // Helpers
+        // ===================================
+        const scrollToBottom = () => { messagesContainer.scrollTop = messagesContainer.scrollHeight; };
+
+        const addMessageToChat = (sender, text, index, imageBase64 = null, imageMime = null, docName = "") => {
+            const wrapper = document.createElement('div');
+            const isUser = sender === 'user';
+            wrapper.className = `flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`;
+            if (isUser) wrapper.setAttribute('data-index', index);
+
+            const bubble = document.createElement('div');
+            bubble.className = `max-w-xs sm:max-w-md lg:max-w-lg p-4 shadow-lg transition-colors duration-200 message-bubble text-sm sm:text-base ${isUser ? 'user-bubble' : 'bot-bubble'}`;
+
+            if (imageBase64) {
+                const img = document.createElement('img');
+                img.src = `data:${imageMime};base64,${imageBase64}`;
+                img.className = 'rounded-lg mb-2 w-full max-h-64 object-contain chat-image';
+                bubble.appendChild(img);
+            }
+
+            if (docName && !imageBase64) {
+                const chip = document.createElement('div');
+                chip.className = 'tag mb-2 inline-block';
+                chip.textContent = `Attached: ${docName}`;
+                bubble.appendChild(chip);
+            }
+
+            if (text) {
+                const content = document.createElement('div');
+                content.className = 'markdown-content';
+                content.innerHTML = marked.parse(text);
+                bubble.appendChild(content);
+            }
+
+            wrapper.appendChild(bubble);
+            messagesContainer.appendChild(wrapper);
+            scrollToBottom();
+
+            if (typeof MathJax !== 'undefined') {
+                MathJax.typesetPromise([wrapper]);
+            }
+
+            if (isUser) {
+                bubble.addEventListener('click', () => {
+                    const messageIndex = parseInt(wrapper.getAttribute('data-index'), 10);
+                    startEditingMessage(messageIndex);
+                });
+            }
+        };
+
+        const addMessageWithLabels = (base64Data, prompt) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex justify-start mb-4';
+            const bubble = document.createElement('div');
+            bubble.className = 'max-w-xs sm:max-w-md lg:max-w-lg p-4 shadow-lg bot-bubble text-sm sm:text-base';
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 400;
+            canvas.height = 300;
+            const ctx = canvas.getContext('2d');
+
+            const img = new Image();
+            img.src = `data:image/png;base64,${base64Data}`;
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#000000';
+                ctx.font = '16px Inter';
+                ctx.textAlign = 'center';
+                if (prompt.toLowerCase().includes('transformer core')) {
+                    ctx.fillText('Core', canvas.width / 2, 20);
+                    ctx.fillText('Windings', canvas.width / 2, canvas.height - 20);
+                } else {
+                    ctx.fillText('Diagram', canvas.width / 2, 20);
+                }
+                scrollToBottom();
+            };
+
+            bubble.appendChild(canvas);
+            wrapper.appendChild(bubble);
+            messagesContainer.appendChild(wrapper);
+        };
+
+        const startEditingMessage = (index) => {
+            editingMessageIndex = index;
+            const messageText = chatHistory[currentMode][index].parts.find(p => p.text)?.text || '';
+            userInput.value = messageText;
+            userInput.focus();
+            sendButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
+        };
+
+        const switchMode = (mode) => {
+            currentMode = mode;
+            messagesContainer.innerHTML = '';
+            if (welcomeContainer) {
+                messagesContainer.appendChild(welcomeContainer);
+                welcomeContainer.classList.remove('hidden');
+            }
+            document.querySelectorAll('.taskbar-btn').forEach(btn => btn.classList.remove('active'));
+            
+            let modeName, placeholderText, welcomeMsg;
+            if (mode === 'general') {
+                modeGeneralBtn.classList.add('active');
+                modeName = 'General';
+                placeholderText = "Ask a question, solve math, or request a diagram...";
+                welcomeMsg = "I can provide general knowledge, solve math problems, create diagrams, or discuss MTM-specific information. How can I assist you today?";
+            } else if (mode === 'proprietary') {
+                modeProprietaryBtn.classList.add('active');
+                modeName = 'MTM Specific';
+                placeholderText = "Ask an MTM-specific question or request a diagram...";
+                welcomeMsg = "Switched to MTM Specific mode. I'm ready to answer questions or create diagrams based on proprietary MTM data.";
+            }
+            
+            userInput.placeholder = placeholderText;
+            originalPlaceholder = placeholderText;
+            welcomeText.textContent = welcomeMsg;
+            
+            const initialBotMessage = document.createElement('div');
+            messagesContainer.prepend(initialBotMessage);
+            addMessageToChat('bot', `You have switched to the **${modeName}** mode.`, -1);
+            initialBotMessage.remove();
+
+            const history = chatHistory[currentMode];
+            const startIndex = (history[0]?.role === 'user' && history[0]?.parts[0]?.text.length > 500) ? 1 : 0;
+            
+            for(let i = startIndex; i < history.length; i++) {
+                const m = history[i];
+                const t = (m.parts.find(p => p.text) || {}).text || '';
+                const inline = m.parts.find(p => p.inlineData);
+                addMessageToChat(m.role === 'model' ? 'bot' : 'user', t, i,
+                    inline ? inline.inlineData.data : null,
+                    inline ? inline.inlineData.mimeType : null
+                );
+            }
+        };
+
+        const showTypingIndicator = () => {
+            const el = document.createElement('div');
+            el.id = 'typing-indicator';
+            el.className = 'flex justify-start mb-4';
+            el.innerHTML = `<div class="p-4 shadow-lg bot-bubble text-sm sm:text-base"><div class="typing-animation flex items-center space-x-1"><span class="dot w-2 h-2 bg-gray-400 rounded-full"></span><span class="dot w-2 h-2 bg-gray-400 rounded-full"></span><span class="dot w-2 h-2 bg-gray-400 rounded-full"></span></div></div>`;
+            messagesContainer.appendChild(el);
+            scrollToBottom();
+        };
+        const hideTypingIndicator = () => {
+            document.getElementById('typing-indicator')?.remove();
+        };
+        
+        const showImageLoadingIndicator = (text = 'Generating diagram...') => {
+            let el = document.getElementById('image-loading-indicator');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'image-loading-indicator';
+                el.className = 'flex justify-start mb-4';
+                messagesContainer.appendChild(el);
+            }
+            el.innerHTML = `<div class="p-4 shadow-lg bot-bubble text-sm sm:text-base flex items-center gap-3"><div class="loader"></div><span id="loader-text">${text}</span></div>`;
+            scrollToBottom();
+        };
+        const hideImageLoadingIndicator = () => {
+            document.getElementById('image-loading-indicator')?.remove();
+        };
+
+        // ===================================
+        // File Handling
+        // ===================================
+        const clearAttachedImage = () => {
+            attachedImageData = null; attachedImageMimeType = null;
+            uploadedDocumentText = ""; uploadedDocumentName = "";
+            fileInput.value = '';
+            imagePreviewContainer.classList.add('hidden');
+            imagePreview.classList.add('hidden');
+            imagePreview.src = '';
+            docChip.classList.add('hidden');
+            fileNameSpan.textContent = '';
+            userInput.placeholder = originalPlaceholder;
+        };
+
+        const MAX_DOC_CHARS = 100000000000;
+        const MAX_FILE_SIZE = 1000 * 1024 * 1024; // 10MB
+
+        const handleFileSelect = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.size > MAX_FILE_SIZE) {
+                showModalMessage('File Too Large', 'Please upload a file smaller than 10MB.');
+                clearAttachedImage();
+                return;
+            }
+            clearAttachedImage();
+            const type = file.type || '';
+            const name = file.name || 'attachment';
+            imagePreviewContainer.classList.remove('hidden');
+            fileNameSpan.textContent = name;
+            userInput.placeholder = "Ask a question about the document or type 'summarize'...";
+
+            if (type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const base64 = ev.target.result.split(',')[1];
+                    const mime = ev.target.result.split(';')[0].split(':')[1];
+                    attachedImageData = base64; attachedImageMimeType = mime;
+                    imagePreview.src = ev.target.result;
+                    imagePreview.classList.remove('hidden');
+                    docChip.classList.add('hidden');
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            uploadedDocumentName = name;
+            imagePreview.classList.add('hidden');
+            docChip.classList.remove('hidden');
+            docChip.textContent = 'Document ready';
+
+            try {
+                if (type === 'text/plain' || name.toLowerCase().endsWith('.txt')) {
+                    uploadedDocumentText = (await file.text()).slice(0, MAX_DOC_CHARS);
+                } else if (type === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdfjsLib = window['pdfjs-dist/build/pdf'] || window['pdfjsLib'];
+                    if (pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+                        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+                    }
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    let text = '';
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent();
+                        text += content.items.map(it => it.str).join(' ') + '\n';
+                        if (text.length > MAX_DOC_CHARS) break;
+                    }
+                    uploadedDocumentText = text.slice(0, MAX_DOC_CHARS);
+                } else if (type.includes('wordprocessingml.document') || name.toLowerCase().endsWith('.docx')) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const result = await window.mammoth.extractRawText({ arrayBuffer });
+                    uploadedDocumentText = (result.value || '').slice(0, MAX_DOC_CHARS);
+                } else {
+                    showModalMessage('Unsupported File Type', 'Please upload an image, TXT, PDF, or DOCX file.');
+                    clearAttachedImage(); return;
+                }
+                docChip.textContent = `Document loaded (${uploadedDocumentText.length} chars)`;
+            } catch (err) {
+                console.error('File parse error:', err);
+                showModalMessage('File Reading Error', 'Failed to read the document. Please try another file.');
+                clearAttachedImage();
+            }
+        };
+
+        const showModalMessage = (title, message) => {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `<div class="bg-gray-800 p-6 rounded-xl shadow-lg max-w-sm w-full text-center"><h3 class="text-xl font-bold text-red-500 mb-2">${title}</h3><p class="text-gray-300 mb-4">${message}</p><button id="close-modal-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors duration-200">Close</button></div>`;
+            document.body.appendChild(modal);
+            document.getElementById('close-modal-btn').addEventListener('click', () => modal.remove());
+        };
+
+        fileInput.addEventListener('change', handleFileSelect);
+        clearImageBtn.addEventListener('click', clearAttachedImage);
+
+        // ===================================
+        // Prompt Suggestions
+        // ===================================
+        userInput.addEventListener('focus', () => promptSuggestions.classList.remove('hidden'));
+        userInput.addEventListener('blur', () => setTimeout(() => promptSuggestions.classList.add('hidden'), 200));
+        promptSuggestions.addEventListener('click', (e) => {
+            if (e.target.dataset.prompt) {
+                userInput.value = e.target.dataset.prompt;
+                promptSuggestions.classList.add('hidden');
+                userInput.focus();
+            }
+        });
+
+        // ===================================
+        // Debounced Input Handling
+        // ===================================
+        const debounce = (func, wait) => {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        };
+
+        userInput.addEventListener('input', debounce(() => {
+            const hasContent = userInput.value.trim().length > 0 || attachedImageData !== null || uploadedDocumentText !== "";
+            if (hasContent && welcomeContainer) welcomeContainer.classList.add('hidden');
+            else if(welcomeContainer) welcomeContainer.classList.remove('hidden');
+        }, 300));
+
+        // ===================================
+        // Image Modal Logic
+        // ===================================
+        messagesContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('chat-image')) {
+                modalImage.src = e.target.src;
+                imageModal.classList.remove('hidden');
+            }
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            imageModal.classList.add('hidden');
+        });
+
+        imageModal.addEventListener('click', (e) => {
+            if (e.target.id === 'image-modal') {
+                imageModal.classList.add('hidden');
+            }
+        });
+
+        // ===================================
+        // API Calls
+        // ===================================
+        const generateTextResponse = async (prompt) => {
+            const tempHistory = JSON.parse(JSON.stringify(chatHistory[currentMode]));
+            const lastUserMessage = tempHistory[tempHistory.length - 1];
+            if(lastUserMessage.role === 'user') {
+                lastUserMessage.parts[0].text = prompt;
+            }
+
+            try {
+                const payload = { contents: tempHistory };
+                const apiKey = userApiKey;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                const result = await response.json();
+                let botText = 'Sorry, I could not get a response. Please try again.';
+                if (result.candidates?.length && result.candidates[0]?.content?.parts?.length) {
+                    botText = result.candidates[0].content.parts[0].text;
+                }
+                hideTypingIndicator();
+                addMessageToChat('bot', botText, chatHistory[currentMode].length);
+                chatHistory[currentMode].push({ role: 'model', parts: [{ text: botText }] });
+            } catch (err) {
+                console.error('Error fetching from text API:', err);
+                hideTypingIndicator();
+                addMessageToChat('bot', 'An error occurred while fetching a response. Please try again later.', -1);
+            }
+        };
+
+        const generateImageResponse = async (prompt) => {
+            try {
+                const payload = { instances: [{ prompt }], parameters: { "sampleCount": 1 } };
+                const apiKey = userApiKey;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                const result = await response.json();
+                hideImageLoadingIndicator();
+                if (result.predictions?.[0]?.bytesBase64Encoded) {
+                    const base64Data = result.predictions[0].bytesBase64Encoded;
+                    addMessageToChat('bot', null, chatHistory[currentMode].length, base64Data, 'image/png');
+                    chatHistory[currentMode].push({ role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: base64Data } }] });
+                } else {
+                    addMessageToChat('bot', 'Sorry, I couldn\'t generate the diagram. Please try a different description.', -1);
+                }
+            } catch (err) {
+                console.error('Error fetching from image API:', err);
+                hideImageLoadingIndicator();
+                addMessageToChat('bot', 'An error occurred while generating the diagram. Please try again later.', -1);
+            }
+        };
+
+     const handleSendMessage = async (e) => {
+    e.preventDefault();
+    const input = userInput.value.trim();
+    if ((!input && !attachedImageData && !uploadedDocumentText) || sendButton.disabled) return;
+    
+    sendButton.disabled = true;
+    if (welcomeContainer) welcomeContainer.classList.add('hidden');
+
+    let userPrompt = input;
+    let displayMessage = userPrompt;
+    
+    addMessageToChat('user', displayMessage, chatHistory[currentMode].length, attachedImageData, attachedImageMimeType, uploadedDocumentName);
+    
+    const parts = [];
+    const summaryKeywords = ['summarize', 'summary', 'tl;dr', 'key points', 'give me a summary'];
+    const isSummarizeRequest = summaryKeywords.some(kw => userPrompt.toLowerCase().includes(kw));
+    const calculationKeywords = ['calculate', 'calculation', 'equation', 'formula', 'solve', 'math', 'si unit', 'symbol'];
+    const isCalculationRequest = calculationKeywords.some(kw => userPrompt.toLowerCase().includes(kw));
+
+    // Handle document or image attachments first
+    if (uploadedDocumentText) {
+        if (isSummarizeRequest || userPrompt === "") {
+            userPrompt = `Please provide a concise summary of the following document named "${uploadedDocumentName}". Highlight the main points and key takeaways.\n\nDocument Content:\n"${uploadedDocumentText}"`;
+        } else {
+            userPrompt = `Using the following document titled "${uploadedDocumentName}" as the primary source, please answer the question: "${userPrompt}".\n\nDocument Content:\n"${uploadedDocumentText}"`;
+        }
+    } else if (isCalculationRequest) {
+        userPrompt = `You are a math and physics expert. A user has a calculation request: "${userPrompt}". Your task is to perform the calculation. Present the solution concisely, like a worked example in an engineering textbook. 1. State the relevant formula using LaTeX. 2. Show the substitution of values directly into the formula. 3. Provide the final answer, clearly stated with the correct SI units. Avoid lengthy text explanations for each step. The focus should be on the mathematical working.`;
+    }
+    parts.push({ text: userPrompt });
+
+    if (attachedImageData) {
+        parts.push({ inlineData: { mimeType: attachedImageMimeType, data: attachedImageData } });
+    }
+    
+    chatHistory[currentMode].push({ role: 'user', parts });
+    
+    userInput.value = '';
+    clearAttachedImage();
+
+    // Evaluate diagram request *after* modifying userPrompt
+    const diagramKeywords = ['draw', 'sketch', 'diagram', 'illustrate', 'create an image', 'show me a drawing', 'mind map'];
+    const isDiagramRequestLocal = diagramKeywords.some(kw => userPrompt.toLowerCase().includes(kw));
+
+    if (isDiagramRequestLocal && !uploadedDocumentText && !isCalculationRequest) {
+        showImageLoadingIndicator('Generating diagram...');
+        await generateImageResponse(userPrompt);
+    } else {
+        showTypingIndicator();
+        await generateTextResponse(userPrompt);
+    }
+    
+    sendButton.disabled = false;
+    userInput.focus();
+};
+
+        chatForm.addEventListener('submit', handleSendMessage);
+        modeGeneralBtn.addEventListener('click', () => switchMode('general'));
+        modeProprietaryBtn.addEventListener('click', () => switchMode('proprietary'));
+
+    });
+</script>
+</body>
+</html>
