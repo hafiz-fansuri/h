@@ -30,6 +30,9 @@
         src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
     </script>
 
+    <!-- Hugging Face Inference for image generation -->
+    <script src="https://cdn.jsdelivr.net/npm/@huggingface/inference@latest"></script>
+
     <style>
         /* Inter font for a modern look */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -341,8 +344,7 @@
         // ===================================
         // Persona / Knowledge Base
         // ===================================
-        const mtmProprietaryKnowledge = `
-            You are Zahrul, the MTM Technical Expert. Your role is to act as a chatbot with extensive knowledge on power transformers, specifically drawing from the following MTM-specific information. You are knowledgeable about the following areas: theory, losses, construction, protection, components, accessories, tap changers, operation, insulation, testing, DGA, DGA analysis methods, understanding transformer nameplates, electrical tests, and maintenance.
+        const mtmProprietaryKnowledge = `You are Zahrul, the MTM Technical Expert. Your role is to act as a chatbot with extensive knowledge on power transformers, specifically drawing from the following MTM-specific information. You are knowledgeable about the following areas: theory, losses, construction, protection, components, accessories, tap changers, operation, insulation, testing, DGA, DGA analysis methods, understanding transformer nameplates, electrical tests, and maintenance.
 
             MTM Proprietary Knowledge:
             - **Core Function:** Transformers operate on "Faraday's law of electromagnetic induction," using an AC current in the primary winding to generate magnetic flux, which induces an EMF in the secondary winding.
@@ -633,10 +635,10 @@
                         - Zig-Zag (Z) Connection: A special three-phase winding connection used to provide a neutral point and improve the handling of unbalanced loads and harmonics.
 
             **Your goal is to be a helpful, intuitive, and creative technical expert. Avoid generic or repetitive responses. Instead, provide clear, concise, and engaging answers. Always suggest a logical follow-up question related to the topic you just discussed.**
+           
         `;
 
-        const generalKnowledge = `
-            You are Zahrul, a general technical expert on power transformers. You can also solve mathematical problems. When a user asks a math question, provide a step-by-step solution and the final answer. For other topics, provide high-level, non-proprietary explanations. If a question is too specific or requires proprietary information, explain your limitation.
+        const generalKnowledge = `You are Zahrul, a general technical expert on power transformers. You can also solve mathematical problems. When a user asks a math question, provide a step-by-step solution and the final answer. For other topics, provide high-level, non-proprietary explanations. If a question is too specific or requires proprietary information, explain your limitation.
 
             **Your goal is to be a helpful, intuitive, and creative technical expert. Avoid generic or repetitive responses. Instead, provide clear, concise, and engaging answers. Always suggest a logical follow-up question related to the topic you just discussed.**
 
@@ -647,6 +649,7 @@
                 - A thorough evaluation of a manufacturer's factory capabilities is critical to manage risks and ensure the transformer's quality. This includes checking their design processes, manufacturing methods, and adherence to quality standards.
                 - Quality assurance (QA) is a key part of the entire lifecycle of a transformer, from design to delivery. It involves strict control of processes and regular audits.
                 - Reputable international organizations and standards bodies like CIGRE, NEMA, IEC, and IEEE provide guidance and standards for transformer procurement and manufacturing.
+           
         `;
 
         let currentMode = 'general';
@@ -998,24 +1001,38 @@
 
         const generateImageResponse = async (prompt) => {
             try {
-                const payload = { instances: [{ prompt }], parameters: { "sampleCount": 1 } };
-                const apiKey = "AIzaSyCrt4tv9DXPe6Dhb4J_DHLj7f4g_ziZMBc";
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
-                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-                const result = await response.json();
-                hideImageLoadingIndicator();
-                if (result.predictions?.[0]?.bytesBase64Encoded) {
-                    const base64Data = result.predictions[0].bytesBase64Encoded;
-                    addMessageToChat('bot', null, chatHistory[currentMode].length, base64Data, 'image/png');
+                // Replace with your Hugging Face API token (sign up at https://huggingface.co/settings/tokens)
+                const hfApiKey = "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";
+                const hf = new HfInference(hfApiKey);
+                const imageBlob = await hf.textToImage({
+                    inputs: prompt,
+                    model: 'stabilityai/stable-diffusion-xl-base-1.0',
+                    parameters: {
+                        negative_prompt: 'blurry, low quality',
+                        num_inference_steps: 30, // Adjust for quality vs speed
+                    }
+                });
+
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64Data = reader.result.split(',')[1];
+                    hideImageLoadingIndicator();
+                    if (prompt.toLowerCase().includes('transformer core')) {
+                        addMessageWithLabels(base64Data, prompt);
+                    } else {
+                        addMessageToChat('bot', null, chatHistory[currentMode].length, base64Data, 'image/png');
+                    }
                     chatHistory[currentMode].push({ role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: base64Data } }] });
-                } else {
-                    addMessageToChat('bot', 'Sorry, I couldn\'t generate the diagram. Please try a different description.', -1);
-                }
+                };
+                reader.onerror = () => {
+                    hideImageLoadingIndicator();
+                    addMessageToChat('bot', 'Error reading generated image.', -1);
+                };
+                reader.readAsDataURL(imageBlob);
             } catch (err) {
                 console.error('Error fetching from image API:', err);
                 hideImageLoadingIndicator();
-                addMessageToChat('bot', 'An error occurred while generating the diagram. Please try again later.', -1);
+                addMessageToChat('bot', 'An error occurred while generating the diagram. Please try again later or check your Hugging Face API token.', -1);
             }
         };
 
