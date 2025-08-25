@@ -996,7 +996,7 @@
         };
 
         const generateImageResponse = async (prompt, retries = 3) => {
-            const hfApiKey = "YOUR_HUGGINGFACE_API_TOKEN_HERE"; // Replace with your valid Hugging Face Read token
+            const hfApiKey = "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"; // Replace with your valid Hugging Face Read token
             if (!hfApiKey || hfApiKey === "YOUR_HUGGINGFACE_API_TOKEN_HERE") {
                 hideImageLoadingIndicator();
                 addMessageToChat('bot', 'Hugging Face API token is missing. Please configure a valid token to enable image generation.', -1);
@@ -1118,3 +1118,4 @@
     </script>
 </body>
 </html>
+
