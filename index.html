@@ -30,9 +30,6 @@
         src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
     </script>
 
-    <!-- Hugging Face Inference for image generation -->
-    <script src="https://cdn.jsdelivr.net/npm/@huggingface/inference@latest"></script>
-
     <style>
         /* Inter font for a modern look */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -341,11 +338,11 @@
                 loginError.classList.remove('hidden');
             }
         });
-
         // ===================================
         // Persona / Knowledge Base
         // ===================================
-        const mtmProprietaryKnowledge = `            You are Zahrul, the MTM Technical Expert. Your role is to act as a chatbot with extensive knowledge on power transformers, specifically drawing from the following MTM-specific information. You are knowledgeable about the following areas: theory, losses, construction, protection, components, accessories, tap changers, operation, insulation, testing, DGA, DGA analysis methods, understanding transformer nameplates, electrical tests, and maintenance.
+        const mtmProprietaryKnowledge = `
+            You are Zahrul, the MTM Technical Expert. Your role is to act as a chatbot with extensive knowledge on power transformers, specifically drawing from the following MTM-specific information. You are knowledgeable about the following areas: theory, losses, construction, protection, components, accessories, tap changers, operation, insulation, testing, DGA, DGA analysis methods, understanding transformer nameplates, electrical tests, and maintenance.
 
             MTM Proprietary Knowledge:
             - **Core Function:** Transformers operate on "Faraday's law of electromagnetic induction," using an AC current in the primary winding to generate magnetic flux, which induces an EMF in the secondary winding.
@@ -635,8 +632,11 @@
                         - Winding Resistance: The resistance of the conductor material in the transformer windings, contributing to copper losses.
                         - Zig-Zag (Z) Connection: A special three-phase winding connection used to provide a neutral point and improve the handling of unbalanced loads and harmonics.
 
-            **Your goal is to be a helpful, intuitive, and creative technical expert. Avoid generic or repetitive responses. Instead, provide clear, concise, and engaging answers. Always suggest a logical follow-up question related to the topic you just discussed.**`;
-        const generalKnowledge = ` You are Zahrul, a general technical expert on power transformers. You can also solve mathematical problems. When a user asks a math question, provide a step-by-step solution and the final answer. For other topics, provide high-level, non-proprietary explanations. If a question is too specific or requires proprietary information, explain your limitation.
+            **Your goal is to be a helpful, intuitive, and creative technical expert. Avoid generic or repetitive responses. Instead, provide clear, concise, and engaging answers. Always suggest a logical follow-up question related to the topic you just discussed.**
+        `;
+
+        const generalKnowledge = `
+            You are Zahrul, a general technical expert on power transformers. You can also solve mathematical problems. When a user asks a math question, provide a step-by-step solution and the final answer. For other topics, provide high-level, non-proprietary explanations. If a question is too specific or requires proprietary information, explain your limitation.
 
             **Your goal is to be a helpful, intuitive, and creative technical expert. Avoid generic or repetitive responses. Instead, provide clear, concise, and engaging answers. Always suggest a logical follow-up question related to the topic you just discussed.**
 
@@ -646,7 +646,8 @@
                 - The buyer is responsible for providing clear and complete technical specifications to the manufacturer to ensure the transformer meets their needs.
                 - A thorough evaluation of a manufacturer's factory capabilities is critical to manage risks and ensure the transformer's quality. This includes checking their design processes, manufacturing methods, and adherence to quality standards.
                 - Quality assurance (QA) is a key part of the entire lifecycle of a transformer, from design to delivery. It involves strict control of processes and regular audits.
-                - Reputable international organizations and standards bodies like CIGRE, NEMA, IEC, and IEEE provide guidance and standards for transformer procurement and manufacturing.`;
+                - Reputable international organizations and standards bodies like CIGRE, NEMA, IEC, and IEEE provide guidance and standards for transformer procurement and manufacturing.
+        `;
 
         let currentMode = 'general';
         let chatHistory = {
@@ -995,127 +996,91 @@
             }
         };
 
-        const generateImageResponse = async (prompt, retries = 3) => {
-            const hfApiKey = "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"; // Replace with your valid Hugging Face Read token
-            if (!hfApiKey || hfApiKey === "YOUR_HUGGINGFACE_API_TOKEN_HERE") {
+        const generateImageResponse = async (prompt) => {
+            try {
+                const payload = { instances: [{ prompt }], parameters: { "sampleCount": 1 } };
+                const apiKey = "AIzaSyCrt4tv9DXPe6Dhb4J_DHLj7f4g_ziZMBc";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                const result = await response.json();
                 hideImageLoadingIndicator();
-                addMessageToChat('bot', 'Hugging Face API token is missing. Please configure a valid token to enable image generation.', -1);
-                return;
-            }
-
-            const models = ['stabilityai/stable-diffusion-xl-base-1.0', 'runwayml/stable-diffusion-v1-5'];
-            for (let attempt = 1; attempt <= retries; attempt++) {
-                for (const model of models) {
-                    try {
-                        console.log(`Attempt ${attempt}: Generating image with ${model} for prompt "${prompt}"`);
-                        const hf = new HfInference(hfApiKey);
-                        const imageBlob = await hf.textToImage({
-                            inputs: prompt,
-                            model: model,
-                            parameters: {
-                                negative_prompt: 'blurry, low quality',
-                                num_inference_steps: 30,
-                            }
-                        });
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const base64Data = reader.result.split(',')[1];
-                            hideImageLoadingIndicator();
-                            if (prompt.toLowerCase().includes('transformer core')) {
-                                addMessageWithLabels(base64Data, prompt);
-                            } else {
-                                addMessageToChat('bot', null, chatHistory[currentMode].length, base64Data, 'image/png');
-                            }
-                            chatHistory[currentMode].push({ role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: base64Data } }] });
-                        };
-                        reader.onerror = () => {
-                            hideImageLoadingIndicator();
-                            addMessageToChat('bot', 'Error reading generated image.', -1);
-                        };
-                        reader.readAsDataURL(imageBlob);
-                        return; // Success, exit retry loop
-                    } catch (err) {
-                        console.error(`Attempt ${attempt} with ${model} failed: ${err.message}`, err.stack);
-                        if (attempt === retries && model === models[models.length - 1]) {
-                            hideImageLoadingIndicator();
-                            let errorMsg = 'Failed to generate diagram after multiple attempts.';
-                            if (err.message.includes('401')) {
-                                errorMsg = 'Invalid Hugging Face API token. Please check your token and try again.';
-                            } else if (err.message.includes('429')) {
-                                errorMsg = 'Hugging Face API rate limit exceeded. Please wait and try again later or upgrade to a Pro account.';
-                            } else if (err.message.includes('503') || err.message.includes('unavailable')) {
-                                errorMsg = 'The image generation model is currently unavailable. Please try again later.';
-                            }
-                            addMessageToChat('bot', errorMsg, -1);
-                        }
-                        // Wait 1 second before retrying
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                }
-            }
-        };
-
-        const handleSendMessage = async (e) => {
-            e.preventDefault();
-            const input = userInput.value.trim();
-            if ((!input && !attachedImageData && !uploadedDocumentText) || sendButton.disabled) return;
-            
-            sendButton.disabled = true;
-            if (welcomeContainer) welcomeContainer.classList.add('hidden');
-
-            let userPrompt = input;
-            let displayMessage = userPrompt;
-            
-            addMessageToChat('user', displayMessage, chatHistory[currentMode].length, attachedImageData, attachedImageMimeType, uploadedDocumentName);
-            
-            const parts = [];
-            const summaryKeywords = ['summarize', 'summary', 'tl;dr', 'key points', 'give me a summary'];
-            const isSummarizeRequest = summaryKeywords.some(kw => userPrompt.toLowerCase().includes(kw));
-            const calculationKeywords = ['calculate', 'calculation', 'equation', 'formula', 'solve', 'math', 'si unit', 'symbol'];
-            const isCalculationRequest = calculationKeywords.some(kw => userPrompt.toLowerCase().includes(kw));
-
-            // Handle document or image attachments first
-            if (uploadedDocumentText) {
-                if (isSummarizeRequest || userPrompt === "") {
-                    userPrompt = `Please provide a concise summary of the following document named "${uploadedDocumentName}". Highlight the main points and key takeaways.\n\nDocument Content:\n"${uploadedDocumentText}"`;
+                if (result.predictions?.[0]?.bytesBase64Encoded) {
+                    const base64Data = result.predictions[0].bytesBase64Encoded;
+                    addMessageToChat('bot', null, chatHistory[currentMode].length, base64Data, 'image/png');
+                    chatHistory[currentMode].push({ role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: base64Data } }] });
                 } else {
-                    userPrompt = `Using the following document titled "${uploadedDocumentName}" as the primary source, please answer the question: "${userPrompt}".\n\nDocument Content:\n"${uploadedDocumentText}"`;
+                    addMessageToChat('bot', 'Sorry, I couldn\'t generate the diagram. Please try a different description.', -1);
                 }
-            } else if (isCalculationRequest) {
-                userPrompt = `You are a math and physics expert. A user has a calculation request: "${userPrompt}". Your task is to perform the calculation. Present the solution concisely, like a worked example in an engineering textbook. 1. State the relevant formula using LaTeX. 2. Show the substitution of values directly into the formula. 3. Provide the final answer, clearly stated with the correct SI units. Avoid lengthy text explanations for each step. The focus should be on the mathematical working.`;
+            } catch (err) {
+                console.error('Error fetching from image API:', err);
+                hideImageLoadingIndicator();
+                addMessageToChat('bot', 'An error occurred while generating the diagram. Please try again later.', -1);
             }
-            parts.push({ text: userPrompt });
-
-            if (attachedImageData) {
-                parts.push({ inlineData: { mimeType: attachedImageMimeType, data: attachedImageData } });
-            }
-            
-            chatHistory[currentMode].push({ role: 'user', parts });
-            
-            userInput.value = '';
-            clearAttachedImage();
-
-            // Evaluate diagram request *after* modifying userPrompt
-            const diagramKeywords = ['draw', 'sketch', 'diagram', 'illustrate', 'create an image', 'show me a drawing', 'mind map'];
-            const isDiagramRequestLocal = diagramKeywords.some(kw => userPrompt.toLowerCase().includes(kw));
-
-            if (isDiagramRequestLocal && !uploadedDocumentText && !isCalculationRequest) {
-                showImageLoadingIndicator('Generating diagram...');
-                await generateImageResponse(userPrompt);
-            } else {
-                showTypingIndicator();
-                await generateTextResponse(userPrompt);
-            }
-            
-            sendButton.disabled = false;
-            userInput.focus();
         };
+
+     const handleSendMessage = async (e) => {
+    e.preventDefault();
+    const input = userInput.value.trim();
+    if ((!input && !attachedImageData && !uploadedDocumentText) || sendButton.disabled) return;
+    
+    sendButton.disabled = true;
+    if (welcomeContainer) welcomeContainer.classList.add('hidden');
+
+    let userPrompt = input;
+    let displayMessage = userPrompt;
+    
+    addMessageToChat('user', displayMessage, chatHistory[currentMode].length, attachedImageData, attachedImageMimeType, uploadedDocumentName);
+    
+    const parts = [];
+    const summaryKeywords = ['summarize', 'summary', 'tl;dr', 'key points', 'give me a summary'];
+    const isSummarizeRequest = summaryKeywords.some(kw => userPrompt.toLowerCase().includes(kw));
+    const calculationKeywords = ['calculate', 'calculation', 'equation', 'formula', 'solve', 'math', 'si unit', 'symbol'];
+    const isCalculationRequest = calculationKeywords.some(kw => userPrompt.toLowerCase().includes(kw));
+
+    // Handle document or image attachments first
+    if (uploadedDocumentText) {
+        if (isSummarizeRequest || userPrompt === "") {
+            userPrompt = `Please provide a concise summary of the following document named "${uploadedDocumentName}". Highlight the main points and key takeaways.\n\nDocument Content:\n"${uploadedDocumentText}"`;
+        } else {
+            userPrompt = `Using the following document titled "${uploadedDocumentName}" as the primary source, please answer the question: "${userPrompt}".\n\nDocument Content:\n"${uploadedDocumentText}"`;
+        }
+    } else if (isCalculationRequest) {
+        userPrompt = `You are a math and physics expert. A user has a calculation request: "${userPrompt}". Your task is to perform the calculation. Present the solution concisely, like a worked example in an engineering textbook. 1. State the relevant formula using LaTeX. 2. Show the substitution of values directly into the formula. 3. Provide the final answer, clearly stated with the correct SI units. Avoid lengthy text explanations for each step. The focus should be on the mathematical working.`;
+    }
+    parts.push({ text: userPrompt });
+
+    if (attachedImageData) {
+        parts.push({ inlineData: { mimeType: attachedImageMimeType, data: attachedImageData } });
+    }
+    
+    chatHistory[currentMode].push({ role: 'user', parts });
+    
+    userInput.value = '';
+    clearAttachedImage();
+
+    // Evaluate diagram request *after* modifying userPrompt
+    const diagramKeywords = ['draw', 'sketch', 'diagram', 'illustrate', 'create an image', 'show me a drawing', 'mind map'];
+    const isDiagramRequestLocal = diagramKeywords.some(kw => userPrompt.toLowerCase().includes(kw));
+
+    if (isDiagramRequestLocal && !uploadedDocumentText && !isCalculationRequest) {
+        showImageLoadingIndicator('Generating diagram...');
+        await generateImageResponse(userPrompt);
+    } else {
+        showTypingIndicator();
+        await generateTextResponse(userPrompt);
+    }
+    
+    sendButton.disabled = false;
+    userInput.focus();
+};
 
         chatForm.addEventListener('submit', handleSendMessage);
         modeGeneralBtn.addEventListener('click', () => switchMode('general'));
         modeProprietaryBtn.addEventListener('click', () => switchMode('proprietary'));
+
     });
-    </script>
+    
+</script>
 </body>
 </html>
-
