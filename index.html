@@ -999,20 +999,45 @@
             }
         };
 
-        const generateImageResponse = async (prompt) => {
-            try {
-                // Replace with your Hugging Face API token (sign up at https://huggingface.co/settings/tokens)
-                const hfApiKey = "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";
-                const hf = new HfInference(hfApiKey);
-                const imageBlob = await hf.textToImage({
-                    inputs: prompt,
-                    model: 'stabilityai/stable-diffusion-xl-base-1.0',
-                    parameters: {
-                        negative_prompt: 'blurry, low quality',
-                        num_inference_steps: 30, // Adjust for quality vs speed
-                    }
-                });
-
+     const generateImageResponse = async (prompt, retries = 3) => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const hfApiKey = "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";
+            const hf = new HfInference(hfApiKey);
+            const imageBlob = await hf.textToImage({
+                inputs: prompt,
+                model: 'stabilityai/stable-diffusion-xl-base-1.0',
+                parameters: {
+                    negative_prompt: 'blurry, low quality',
+                    num_inference_steps: 30,
+                }
+            });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64Data = reader.result.split(',')[1];
+                hideImageLoadingIndicator();
+                if (prompt.toLowerCase().includes('transformer core')) {
+                    addMessageWithLabels(base64Data, prompt);
+                } else {
+                    addMessageToChat('bot', null, chatHistory[currentMode].length, base64Data, 'image/png');
+                }
+                chatHistory[currentMode].push({ role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: base64Data } }] });
+            };
+            reader.onerror = () => {
+                hideImageLoadingIndicator();
+                addMessageToChat('bot', 'Error reading generated image.', -1);
+            };
+            reader.readAsDataURL(imageBlob);
+            return; // Success, exit retry loop
+        } catch (err) {
+            console.error(`Attempt ${attempt} failed:`, err);
+            if (attempt === retries) {
+                hideImageLoadingIndicator();
+                addMessageToChat('bot', `Failed to generate diagram after ${retries} attempts. Please check your API token or try again later.`, -1);
+            }
+        }
+    }
+};
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     const base64Data = reader.result.split(',')[1];
@@ -1101,3 +1126,4 @@
 </script>
 </body>
 </html>
+
